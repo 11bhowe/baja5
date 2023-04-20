@@ -9,5 +9,5 @@ IoT gas sensor project
 - [ ] fans
 - [ ] housing
 - [ ] interface??
-- [ ] UART / ESS
-- [ ] Firebase setup
+- [x] UART / ESS
+- [x] Firebase setup

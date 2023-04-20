@@ -3,7 +3,7 @@ IoT gas sensor project
 
 ### TODO:
 - Firebase authentication
-- InlfuxDB??
+- InfluxDB??
 - Twillio
 - power supply
 - fans

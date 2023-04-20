@@ -11,4 +11,3 @@ IoT gas sensor project
 - [ ] interface??
 - [ ] UART / ESS
 - [ ] Firebase setup
-- [ ] 

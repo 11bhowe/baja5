@@ -25,15 +25,16 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const database = getDatabase();
-
 const numDevices = 1;
-var vent1 = false;
-var vent2 = false;
+
+function updateDB(path, a) {
+    set(ref(database, path),a).catch((error) => {
+        console.log("ERROR");
+    });
+}
 
 async function main( )
 {
-    var dict = {};
-
     // Reference the BLE adapter and begin device discovery...
     const { bluetooth, destroy } = createBluetooth();
     const adapter = await bluetooth.defaultAdapter();
@@ -59,53 +60,60 @@ async function main( )
     await d1sensor1.startNotifications( );
     await d1sensor2.startNotifications( );
 
-    // Callback for when data is received on characteristics
+    // Callbacks for when data is received from a sensor
+    // Reads/converts the transmitted value
+    // Prints the values, and sends them to update the DB
     d1sensor1.on( 'valuechanged', buffer =>
     {
         let lsb = buffer[0];
         let msb = buffer[1];
         let val = (lsb + (msb << 8));
-        var d = val.toString().substring(1,2);
-        var a = val.toString().substring(2);
+        var d = parseInt(val.toString().substring(1,2));
+        var a = parseInt(val.toString().substring(2));
         console.log('Device 1 Sensor 1:   digital - ' + d + '    analog - ' + a);
-        dict['d1s1a'] = parseInt(buffer.toString().substring(2));
-        dict['d1s1d'] = parseInt(buffer.toString().substring(1,2));
 
-        update(ref(database, '/device1/sensor1/'), {
-            analog: dict['d1s1a'],
-            digital: dict['d1s1d']
-        });
+        updateDB('/device1/sensor1/analog', a);
+        updateDB('/device1/sensor1/digital', d);
+
     });
     d1sensor2.on( 'valuechanged', buffer =>
     {
         let lsb = buffer[0];
         let msb = buffer[1];
         let val = (lsb + (msb << 8));
-        var d = val.toString().substring(1,2);
-        var a = val.toString().substring(2);
+        var d = parseInt(val.toString().substring(1,2));
+        var a = parseInt(val.toString().substring(2));
         console.log('Device 1 Sensor 2:   digital - ' + d + '    analog - ' + a);
-        dict['d1s2a'] = parseInt(buffer.toString().substring(2));
-        dict['d1s2d'] = parseInt(buffer.toString().substring(1,2));
 
-        update(ref(database, '/device1/sensor2'), {
-            analog: dict['d1s2a'],
-            digital: dict['d1s2d']
-        });
+        updateDB('/device1/sensor2/analog', a);
+        updateDB('/device1/sensor2/digital', d);
     });
 
+
+    // Listeners on both digital sensor values in Firebase 
+    //  * if either digital value is changed to 0 in DB, 
+    //    the vent value is updated to true
+    //  * if a digital value is changed to 1, then get 
+    //    the other digital value, update vent to false
+    //    if also equal to 1
+    //  * any updates to the vent are sent to the arduino via d1cmd
     onValue(ref(database, '/device1/sensor1/digital'), (snapshot) => {
         const data = snapshot.val();
         if (data == 0) {
-            update(ref(database, '/device1'), {
-                vent: true
+            update(ref(database, '/device1'), { vent: true });
+            d1cmd.writeValue(Buffer.from('VENT ON')).then(() =>
+            {
+                console.log('Sent: VENT ON');
             });
         }
         if (data == 1) {
             get(ref(database, '/device1/sensor2/digital')).then((snapshot1) => {
                 const d = snapshot1.val();
                 if (d == 1) {
-                    update(ref(database, '/device1'), {
-                        vent: false
+                    update(ref(database, '/device1'), { vent: false });
+                    d1cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
+                    {
+                        console.log('Sent: VENT OFF');
                     });
                 }
             });
@@ -114,37 +122,28 @@ async function main( )
     onValue(ref(database, '/device1/sensor2/digital'), (snapshot) => {
         const data = snapshot.val();
         if (data == 0) {
-            update(ref(database, '/device1'), {
-                vent: true
+            update(ref(database, '/device1'), { vent: true });
+            d1cmd.writeValue(Buffer.from('VENT ON')).then(() =>
+            {
+                console.log('Sent: VENT ON');
             });
         }
         if (data == 1) {
             get(ref(database, '/device1/sensor1/digital')).then((snapshot1) => {
                 const d = snapshot1.val();
                 if (d == '1') {
-                    update(ref(database, '/device1'), {
-                        vent: false
+                    update(ref(database, '/device1'), { vent: false });
+                    d1cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
+                    {
+                        console.log('Sent: VENT OFF');
                     });
                 }
             });
         }
     });
-    onValue(ref(database, '/device1/vent'), (snapshot) => {
-        const data = snapshot.val();
-        if (data == true) {
-            d1cmd.writeValue(Buffer.from('VENT ON')).then(() =>
-            {
-                console.log('Sent: VENT ON');
-            });
-        } else if (data == false) {
-            d1cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
-            {
-                console.log('Sent: VENT OFF');
-            });
-        }
-    });
 
 
+    // CODE FOR 2nd ARDUINO
     if (numDevices == 2) {
         // Attempt to connect to the device with specified BT address
         const device2 = await adapter.waitDevice( ARDUINO_BLUETOOTH_ADDR2.toUpperCase() );
@@ -164,49 +163,50 @@ async function main( )
         await d2sensor1.startNotifications( );
         await d2sensor2.startNotifications( );
 
-        // Callback for when data is received on characteristics
+        // Callbacks for when data is received on sensors
         d2sensor1.on( 'valuechanged', buffer =>
         {
             let lsb = buffer[0];
             let msb = buffer[1];
             let val = (lsb + (msb << 8));
-            console.log('Device 2 Sensor 1: ' + val.toString());
-            dict['d2s1a'] = parseInt(buffer.toString().split(' ')[0]);
-            dict['d2s1d'] = parseInt(buffer.toString().split(' ')[1]);
-
-            update(ref(database, '/device2/sensor1'), {
-                analog: dict['d2s1a'],
-                digital: dict['d2s1d']
-            });
+            var d = parseInt(val.toString().substring(1,2));
+            var a = parseInt(val.toString().substring(2));
+            console.log('Device 2 Sensor 1:   digital - ' + d + '    analog - ' + a);
+        
+            updateDB('/device2/sensor1/analog', a);
+            updateDB('/device2/sensor1/digital', d);
         });
         d2sensor2.on( 'valuechanged', buffer =>
         {
             let lsb = buffer[0];
             let msb = buffer[1];
             let val = (lsb + (msb << 8));
-            console.log('Device 2  Sensor 2: ' + val.toString());
-            dict['d2s2a'] = parseInt(buffer.toString().split(' ')[0]);
-            dict['d2s2d'] = parseInt(buffer.toString().split(' ')[1]);
-
-            update(ref(database, '/device2/sensor2'), {
-                analog: dict['d2s2a'],
-                digital: dict['d2s2d']
-            });
+            var d = parseInt(val.toString().substring(1,2));
+            var a = parseInt(val.toString().substring(2));
+            console.log('Device 2 Sensor 2:   digital - ' + d + '    analog - ' + a);
+            
+            updateDB('/device2/sensor2/analog', a);
+            updateDB('/device2/sensor2/digital', d);
         });
 
+        // Listeners for each digital sensor value in Firebase 
         onValue(ref(database, '/device2/sensor1/digital'), (snapshot) => {
             const data = snapshot.val();
             if (data == 0) {
-                update(ref(database, '/device2'), {
-                    vent: true
+                update(ref(database, '/device2'), { vent: true });
+                d2cmd.writeValue(Buffer.from('VENT ON')).then(() =>
+                {
+                    console.log('Sent: VENT ON');
                 });
             }
             if (data == 1) {
                 get(ref(database, '/device2/sensor2/digital')).then((snapshot1) => {
                     const d = snapshot1.val();
                     if (d == 1) {
-                        update(ref(database, '/device2'), {
-                            vent: false
+                        update(ref(database, '/device2'), { vent: false });
+                        d2cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
+                        {
+                            console.log('Sent: VENT OFF');
                         });
                     }
                 });
@@ -215,36 +215,28 @@ async function main( )
         onValue(ref(database, '/device2/sensor2/digital'), (snapshot) => {
             const data = snapshot.val();
             if (data == 0) {
-                update(ref(database, '/device2'), {
-                    vent: true
+                update(ref(database, '/device2'), { vent: true });
+                d2cmd.writeValue(Buffer.from('VENT ON')).then(() =>
+                {
+                    console.log('Sent: VENT ON');
                 });
             }
             if (data == 1) {
                 get(ref(database, '/device2/sensor1/digital')).then((snapshot1) => {
                     const d = snapshot1.val();
                     if (d == 1) {
-                        update(ref(database, '/device2'), {
-                            vent: false
+                        update(ref(database, '/device2'), { vent: false });
+                        d2cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
+                        {
+                            console.log('Sent: VENT OFF');
                         });
                     }
                 });
             }
         });
-        onValue(ref(database, '/device2/vent'), (snapshot) => {
-            const data = snapshot.val();
-            if (data == true) {
-                d2cmd.writeValue(Buffer.from('VENT ON')).then(() =>
-                {
-                    console.log('Sent: VENT ON');
-                });
-            } else if (data == false) {
-                d2cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
-                {
-                    console.log('Sent: VENT OFF');
-                });
-            }
-        });
+
     }
+
 }
 
 main().then((ret) =>
@@ -254,3 +246,4 @@ main().then((ret) =>
 {
     if (err) console.error( err );
 });
+

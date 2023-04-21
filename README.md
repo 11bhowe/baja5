@@ -5,8 +5,9 @@ IoT gas sensor project
 - [ ] Firebase authentication
 - [ ] InfluxDB??
 - [ ] Twillio
+- [ ] graph program
 - [ ] power supply
-- [ ] fans
+- [ ] ~~fans~~
 - [ ] housing
 - [ ] interface??
 - [x] UART / ESS

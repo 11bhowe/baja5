@@ -4,11 +4,13 @@ IoT gas sensor project
 ### TODO:
 - [ ] Firebase authentication
 - [ ] InfluxDB??
-- [ ] Twillio
+- [ ] ~~Twillio~~
+- [ ] IFTTT notifications
 - [ ] graph program
 - [ ] power supply
 - [ ] ~~fans~~
 - [ ] housing
+- [ ] encrypt sensor data?
 - [ ] interface??
 - [x] UART / ESS
 - [x] Firebase setup

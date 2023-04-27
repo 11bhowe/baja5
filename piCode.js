@@ -164,13 +164,9 @@ async function main( )
         }
     });
 
-    // Listeners on both digital sensor values in Firebase 
-    //  * if either digital value is changed from 0 to 1
+    // Listener on digital sensor value in Firebase 
+    //  * if the digital value is changed from either 0 to 1
     //    or 1 to 0, then the digital value count is reset 
-    //  * if a digital value is changed to 1, then get 
-    //    the other digital value, update vent to false
-    //    if also equal to 1
-    //  * any updates to the vent are sent to the arduino via d1cmd
     onValue(ref(database, '/device1/sensor1/digital'), (snapshot) => {
         const data = snapshot.val();
         if (data == 0 || data == 1) {

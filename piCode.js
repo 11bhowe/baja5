@@ -141,6 +141,21 @@ async function main( )
             });
         }
     });
+    
+    onValue(ref(database, '/device1/vent'), (snapshot) => {
+        const data = snapshot.val();
+        if (data == true) {
+            d1cmd.writeValue(Buffer.from('VENT ON')).then(() =>
+            {
+                console.log('Sent: VENT ON');
+            });
+        } else if (data == false) {
+            d1cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
+            {
+                console.log('Sent: VENT OFF');
+            });
+        }
+    });
 
 
     // CODE FOR 2nd ARDUINO
@@ -234,6 +249,21 @@ async function main( )
                 });
             }
         });
+        
+        onValue(ref(database, '/device2/vent'), (snapshot) => {
+        const data = snapshot.val();
+        if (data == true) {
+            d2cmd.writeValue(Buffer.from('VENT ON')).then(() =>
+            {
+                console.log('Sent: VENT ON');
+            });
+        } else if (data == false) {
+            d2cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
+            {
+                console.log('Sent: VENT OFF');
+            });
+        }
+    });
 
     }
 

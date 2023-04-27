@@ -3,9 +3,9 @@ IoT gas sensor project
 
 ### TODO:
 - [ ] Firebase authentication
-- [ ] InfluxDB??
+- [ ] ~~InfluxDB??~~
 - [ ] ~~Twillio~~
-- [ ] IFTTT notifications
+- [x] IFTTT notifications
 - [ ] graph program
 - [ ] power supply
 - [ ] ~~fans~~
@@ -17,7 +17,6 @@ IoT gas sensor project
 
 
 #### Schedule:
-- Security quiz next Wednesday
 - Presentation May 3
 - No class May 5
 - Report due May 12 5pm

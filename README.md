@@ -7,8 +7,9 @@ IoT gas sensor project
 - [ ] ~~Twillio~~
 - [x] IFTTT notifications
 - [ ] graph program
-- [ ] power supply
+- [x] power supply
 - [ ] ~~fans~~
+- [x] turn on LED (vent)
 - [ ] housing
 - [ ] encrypt sensor data?
 - [ ] interface??

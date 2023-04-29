@@ -3,7 +3,7 @@ IoT gas sensor project
 
 ### TODO:
 - [ ] Firebase authentication
-- [ ] ~~InfluxDB??~~
+- [x] InfluxDB
 - [ ] ~~Twillio~~
 - [x] IFTTT notifications
 - [ ] graph program

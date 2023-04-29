@@ -25,11 +25,11 @@ var dict = {device1:{sensor1:-3, sensor2:-3, vent:false}, device2:{sensor1:0, se
 ///  IFTTT Notifications  ///
 /////////////////////////////
 var XMLHttpRequest = require('xhr2');
-const url = 'https://maker.ifttt.com/trigger/send_text/json/with/key/bYCQFGaQJcC1ZZwaEpyzh5';
+const iftttURL = 'https://maker.ifttt.com/trigger/send_text/json/with/key/bYCQFGaQJcC1ZZwaEpyzh5';
 
 function sendText(a, b) {
     var Http = new XMLHttpRequest();
-    Http.open("POST", url);
+    Http.open("POST", iftttURL);
     Http.setRequestHeader("Content-Type", "application/json");
     Http.send('{"' + a + '":"' + b + '"}');
     Http.onreadystatechange = function () {
@@ -39,6 +39,23 @@ function sendText(a, b) {
             console.log("[TEXT SENT]");
         }
     };
+}
+
+
+////////////////////////
+///  InfluxDB Setup  ///
+////////////////////////
+const {InfluxDB, Point} = require('@influxdata/influxdb-client');
+const username = 'root';
+const password = 'root';
+const db_name = 'bajatest1';
+const bucket = `${db_name}/${'autogen'}`;
+
+function writeInflux(device, sensor, a, d) {
+    const influxDB = new InfluxDB({ url: 'http://localhost:8086', token: `${username}:${password}`}).getWriteApi('', bucket);
+    const point = new Point(device).tag('sensor', sensor).floatField('analog', a).floatField('digital', d);
+    influxDB.writePoint(point);
+    influxDB.close();
 }
 
 
@@ -129,11 +146,12 @@ async function main( )
         let val = (lsb + (msb << 8));
         var d = parseInt(val.toString().substring(1,2));
         var a = parseInt(val.toString().substring(2));
+        console.log('Device 1 Sensor 1:   digital - ' + d + '    analog - ' + a);
 
         // Update Firebase analog & digital values
         updateDB('/device1/sensor1/analog', a);
         updateDB('/device1/sensor1/digital', d);
-        console.log('Device 1 Sensor 1:   digital - ' + d + '    analog - ' + a);
+        writeInflux('device1', 'sensor1', a, d);
 
         // Update digital value count
         if (d == 1) {
@@ -205,10 +223,11 @@ async function main( )
             let val = (lsb + (msb << 8));
             var d = parseInt(val.toString().substring(1,2));
             var a = parseInt(val.toString().substring(2));
+            console.log('Device 1 Sensor 2:   digital - ' + d + '    analog - ' + a);
 
             updateDB('/device1/sensor2/analog', a);
             updateDB('/device1/sensor2/digital', d);
-            console.log('Device 1 Sensor 2:   digital - ' + d + '    analog - ' + a);
+            writeInflux('device1', 'sensor2', a, d);
 
             if (d == 1) {
                 dict['device1']['sensor2'] -= 1;
@@ -272,6 +291,7 @@ async function main( )
         
             updateDB('/device2/sensor1/analog', a);
             updateDB('/device2/sensor1/digital', d);
+            writeInflux('device2', 'sensor1', a, d);
 
             if (d == 1) {
                 dict['device2']['sensor1'] -= 1;
@@ -318,6 +338,7 @@ async function main( )
                 
                 updateDB('/device2/sensor2/analog', a);
                 updateDB('/device2/sensor2/digital', d);
+                writeInflux('device2', 'sensor2', a, d);
 
                 if (d == 1) {
                     dict['device2']['sensor2'] -= 1;
@@ -357,4 +378,3 @@ main().then((ret) =>
 {
     if (err) console.error( err );
 });
-

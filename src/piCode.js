@@ -66,7 +66,7 @@ const database = getDatabase();
 // const auth = getAuth(firebase);
 
 // Initialize all digital values negative until we know which sensors are in use
-set(ref(database, '/device1'), {
+set(ref(database), {
     device1: {
         sensor1: {
             digital: N-1

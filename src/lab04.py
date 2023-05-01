@@ -8,6 +8,8 @@ import tkinter as tk
 import random
 import matplotlib.animation as animation
 import pprint   #pretty printer to print dictionary
+
+
 point_data = {}
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -25,10 +27,12 @@ def on_message(client, userdata, msg):
     point_data["measurement"] = msg.topic[-4:]
     point_data["fields"] = {'usage':float(msg_payload)}
     influx_client.write_points( [ point_data ] )
+    
 
 # Initialize the InfluxDB client
 # TODO
-influx_client = InfluxDBClient(host='localhost', port=8086, username='AustinAlec',password='simple', database='lab4test')
+influx_client = InfluxDBClient(url='https://maker.ifttt.com/trigger/send_text/json/with/key/bYCQFGaQJcC1ZZwaEpyzh5'
+, port=8086, username='root',password='root', database='bajatest1')
 
 #influx_client.write_points( [ point_data ] )
 # Initialize the MQTT client that should connect to the Mosquitto broker
@@ -45,18 +49,16 @@ while(connOK == False):
     time.sleep(1)
 
 # Blocking loop to the Mosquitto broker
-
+arr = [] #data array
 
 def animate(i):
 
-    data = client_socket.recv(1024)
+    #data = get data from influxdb
     print(data)
     if (data.decode('utf-8') == ''):
         #client_socket.close()
         #the lab manual says if I don't get data I should leave a null space in the graph
         data = '000.000'
-    if Celsius == False:
-        data = celcius_to_f(eval(data[:5]))
     else:
         data = eval(data[:5])
     arr.append(data)
@@ -64,8 +66,8 @@ def animate(i):
     ax1.plot(arr)
 
     plt.xlabel("Time (sec)")
-    plt.ylabel("Temp ("+tempScale+")")
-    plt.title("Temperature vs Time")
+    plt.ylabel("sensor ("+1+")")
+    plt.title("sensor vs Time")
 
 
 
@@ -98,44 +100,34 @@ if __name__ == '__main__':
     #frame = tk.Frame(master=window, height=200, width=200)
     labelBox = tk.Label(text=BoxStatus)
     FButton = tk.Button(
-        text="Fahrenheit",
+        text="Device 1",
         width=10,
         height=5,
         bg="red",
         fg="yellow",
     )
     CButton = tk.Button(
-        text="Celsius",
+        text="Device 2",
         width=10,
         height=5,
         bg="yellow",
         fg="black",
     )
-    LCDButton = tk.Button(
-        text="LCD Power",
-        width=10,
-        height=5,
-        bg="Blue",
-        fg="White",
-    )
+
 
     maxLabel = tk.Button(text="Set MAX")
     Tmax = tk.Text(height=2, width=20)
     minLabel = tk.Button(text="Set MIN")
     Tmin = tk.Text(height=2, width=20)
-    FButton.bind("<Button-1>", graph_F)
-    CButton.bind("<Button-1>", graph_C)
-    LCDButton.bind("<Button-1>", LCDPower)
-    maxLabel.bind("<Button-1>", maxButtonPress)
-    minLabel.bind("<Button-1>", minButtonPress)
+    FButton.bind("<Button-1>", None)
+    CButton.bind("<Button-1>", None)
+    maxLabel.bind("<Button-1>", None)
+    minLabel.bind("<Button-1>", None)
 
 
     #I think we need 1 number in the GUI that just displays the current temp
     #This will only run once
-    data = client_socket.recv(1024)
-    currentTemp = tk.Label(text=data[0:5])
 
-    currentTemp.grid(row=0, column=0)
     labelBox.grid(row =1, column=0)
     greeting.grid(row =2, column=0)
     maxLabel.grid(row=0, column=3)
@@ -144,5 +136,4 @@ if __name__ == '__main__':
     Tmin.grid(row=3,column=3)
     FButton.grid(row=1, column=1)
     CButton.grid(row=2, column=1)
-    LCDButton.grid(row=1, column=2)
     window.mainloop() #blocks code after it till the window is closed

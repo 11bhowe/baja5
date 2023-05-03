@@ -25,7 +25,7 @@ var dict = {device1:{sensor1:{c:-3, d:-1}, sensor2:{c:-3, d:-1}, vent:false}, de
 ///  IFTTT Notifications  ///
 /////////////////////////////
 var XMLHttpRequest = require('xhr2');
-const iftttURL = 'https://maker.ifttt.com/trigger/send_text/json/with/key/bYCQFGaQJcC1ZZwaEpyzh5';
+const iftttURL = 'https://maker.ifttt.com/trigger/send_alert/json/with/key/bYCQFGaQJcC1ZZwaEpyzh5';
 
 function sendText(a, b) {
     var Http = new XMLHttpRequest();
@@ -34,6 +34,8 @@ function sendText(a, b) {
     Http.send('{"' + a + '":"' + b + '"}');
     Http.onreadystatechange = function () {
         if (Http.readyState === 4) {
+            console.log(Http.status);
+            console.log(Http.responseText);
             console.log("[TEXT SENT]");
         }
     };
@@ -67,6 +69,75 @@ function writeInflux2(device, onOff) {
 }
 
 
+// Callback for when data is received from a sensor
+// Reads/converts the transmitted value
+// Prints the values, and sends them to update the DB
+function initSensor(sensor, cmd, dnum, snum) {
+    sensor.on( 'valuechanged', buffer =>
+    {
+        let lsb = buffer[0];
+        let msb = buffer[1];
+        let val = (lsb + (msb << 8));
+        var d = parseInt(val.toString().substring(1,2));
+        var a = parseInt(val.toString().substring(2));
+        console.log('Device ' + dnum.toString() + ' Sensor ' + snum + ':   digital - ' + d + '    analog - ' + a);
+        let dname = 'device' + dnum.toString();
+        let sname = 'sensor' + snum.toString();
+
+        // Update InfluxDB 
+        writeInflux1(dname, sname, a, d);
+
+        // Update digital value count
+        if (d == 1) {
+            dict[dname][sname]['c'] -= 1;
+        } else {
+            dict[dname][sname]['c'] += 1;
+        }
+
+        // Turn vent ON if...
+        //   * the digital values from at leastone of the sensors
+        //     must have been 0 for the last M samples
+        //   * the device's vent is already off
+        // Sends VENT ON command to arduino
+        // Calls sendText()
+        // Updates InfluxDB vent value
+        if (d == 0 && dict[dname][sname]['c'] >= M && dict[dname]['vent'] == false) {
+            dict[dname]['vent'] = true;
+            cmd.writeValue(Buffer.from('VENT ON')).then(() =>
+            {
+                console.log('[COMMAND SENT] - VENT ON');
+            });
+            sendText(sensorNames[0][0] + ' detected in the ' + deviceNames[0], 'Vent: ON');
+            writeInflux2(dname, true);
+        }
+
+        // Turn vent OFF if...
+        //   * the digital values from both sensors must have 
+        //     been 1 for the last N samples
+        //   * the device's vent is already on
+        // Sends VENT OFF command to arduino
+        // Calls sendText()
+        // Updates InfluxDB vent value
+        if (d == 1 && dict[dname][sname]['c'] <= N && dict[dname]['sensor2']['c'] <= N && dict[dname]['vent'] == true) {
+            dict[dname]['vent'] = false;
+            cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
+            {
+                console.log('[COMMAND SENT] - VENT OFF');
+            });
+            sendText('All Clear - ' + deviceNames[0], 'Vent: OFF');
+            writeInflux2(dname, false);
+        }
+
+        // This code replaces the functionality Firebase had
+        // Sensor count is reset when digital value changes
+        if (d != dict[dname][sname]['d'] && dict[dname][sname]['d'] != -1) {
+            dict[dname][sname]['c'] = 0;
+        }
+        dict[dname][sname]['d'] = d;
+    });
+}
+
+
 async function main( )
 {
     // Reference the BLE adapter and begin device discovery...
@@ -91,70 +162,7 @@ async function main( )
 
     // Register for notifications on the characteristics
     await d1sensor1.startNotifications( );
-
-    // Callbacks for when data is received from a sensor
-    // Reads/converts the transmitted value
-    // Prints the values, and sends them to update the DB
-    d1sensor1.on( 'valuechanged', buffer =>
-    {
-        let lsb = buffer[0];
-        let msb = buffer[1];
-        let val = (lsb + (msb << 8));
-        var d = parseInt(val.toString().substring(1,2));
-        var a = parseInt(val.toString().substring(2));
-        console.log('Device 1 Sensor 1:   digital - ' + d + '    analog - ' + a);
-
-        // Update InfluxDB 
-        writeInflux1('device1', 'sensor1', a, d);
-
-        // Update digital value count
-        if (d == 1) {
-            dict['device1']['sensor1']['c'] -= 1;
-        } else {
-            dict['device1']['sensor1']['c'] += 1;
-        }
-
-        // Turn vent ON if...
-        //   * the digital values from at leastone of the sensors
-        //     must have been 0 for the last M samples
-        //   * the device's vent is already off
-        // Sends VENT ON command to arduino
-        // Calls sendText()
-        // Updates InfluxDB vent value
-        if (d == 0 && dict['device1']['sensor1']['c'] >= M && dict['device1']['vent'] == false) {
-            dict['device1']['vent'] = true;
-            d1cmd.writeValue(Buffer.from('VENT ON')).then(() =>
-            {
-                console.log('[COMMAND SENT] - VENT ON');
-            });
-            sendText(sensorNames[0][0] + ' detected in the ' + deviceNames[0], 'Vent: ON');
-            writeInflux2('device1', true);
-        }
-
-        // Turn vent OFF if...
-        //   * the digital values from both sensors must have 
-        //     been 1 for the last N samples
-        //   * the device's vent is already on
-        // Sends VENT OFF command to arduino
-        // Calls sendText()
-        // Updates InfluxDB vent value
-        if (d == 1 && dict['device1']['sensor1']['c'] <= N && dict['device1']['sensor2']['c'] <= N && dict['device1']['vent'] == true) {
-            dict['device1']['vent'] = false;
-            d1cmd.writeValue(Buffer.from('VENT OFF')).then(() =>
-            {
-                console.log('[COMMAND SENT] - VENT OFF');
-            });
-            sendText('All Clear - ' + deviceNames[0], 'Vent: OFF');
-            writeInflux2('device1', false);
-        }
-
-        // This code replaces the functionality Firebase had
-        // Sensor count is reset when digital value changes
-        if (d != dict['device1']['sensor1']['d'] && dict['device1']['sensor1']['d'] != -1) {
-            dict['device1']['sensor1']['c'] = 0;
-        }
-        dict['device1']['sensor1']['d'] = d;
-    });
+    initSensor(d1sensor1,d1cmd,1,1);
 
 
     ///////////////////////////
@@ -163,41 +171,7 @@ async function main( )
     if (numSensors1 == 2) {
         const d1sensor2 = await eesService1.getCharacteristic(S2_CHARACTERISTIC_UUID.toLowerCase());
         await d1sensor2.startNotifications( );
-        d1sensor2.on( 'valuechanged', buffer =>
-        {
-            let lsb = buffer[0];
-            let msb = buffer[1];
-            let val = (lsb + (msb << 8));
-            var d = parseInt(val.toString().substring(1,2));
-            var a = parseInt(val.toString().substring(2));
-            console.log('Device 1 Sensor 2:   digital - ' + d + '    analog - ' + a);
-
-            writeInflux1('device1', 'sensor2', a, d);
-
-            if (d == 1) {
-                dict['device1']['sensor2']['c'] -= 1;
-            } else {
-                dict['device1']['sensor2']['c'] += 1;
-            }
-
-            if (d == 0 && dict['device1']['sensor2']['c'] >= M && dict['device1']['vent'] == false) {
-                dict['device1']['vent'] = true;
-                d1cmd.writeValue(Buffer.from('VENT ON')).then(() => { console.log('[COMMAND SENT] - VENT ON'); });
-                sendText(sensorNames[0][1] + ' detected in the ' + deviceNames[0], 'Vent: ON');
-                writeInflux2('device1', true);
-            }
-            if (d == 1 && dict['device1']['sensor2']['c'] <= N && dict['device1']['sensor1']['c'] <= N && dict['device1']['vent'] == true) {
-                dict['device1']['vent'] = false;
-                d1cmd.writeValue(Buffer.from('VENT OFF')).then(() => { console.log('[COMMAND SENT] - VENT OFF'); });
-                sendText('All Clear - ' + deviceNames[0], 'Vent: OFF');
-                writeInflux2('device1', false);
-            }
-
-            if (d != dict['device1']['sensor2']['d'] && dict['device1']['sensor2']['d'] != -1) {
-                dict['device1']['sensor2']['c'] = 0;
-            }
-            dict['device1']['sensor2']['d'] = d;
-        });
+        initSensor(d1sensor2,d1cmd,1,2);
     }
 
 
@@ -221,42 +195,8 @@ async function main( )
         ///////////////////////////
         const d2sensor1 = await eesService2.getCharacteristic(S1_CHARACTERISTIC_UUID.toLowerCase());
         await d2sensor1.startNotifications( );
-        d2sensor1.on( 'valuechanged', buffer =>
-        {
-            let lsb = buffer[0];
-            let msb = buffer[1];
-            let val = (lsb + (msb << 8));
-            var d = parseInt(val.toString().substring(1,2));
-            var a = parseInt(val.toString().substring(2));
-            console.log('Device 2 Sensor 1:   digital - ' + d + '    analog - ' + a);
+        initSensor(d2sensor1,d2cmd,2,1);
         
-            writeInflux1('device2', 'sensor1', a, d);
-
-            if (d == 1) {
-                dict['device2']['sensor1']['c'] -= 1;
-            } else {
-                dict['device2']['sensor1']['c'] += 1;
-            }
-
-            if (dict['device2']['sensor1']['c'] >= M && dict['device2']['vent'] == false) {
-                dict['device2']['vent'] = true;
-                d2cmd.writeValue(Buffer.from('VENT ON')).then(() => { console.log('[COMMAND SENT] - VENT ON'); });
-                sendText(sensorNames[1][0] + ' detected in the ' + deviceNames[1], 'Vent: ON');
-                writeInflux2('device2', true);
-            }
-            if (dict['device2']['sensor1']['c'] <= N && dict['device2']['sensor2']['c'] <= N && dict['device2']['vent'] == true) {
-                dict['device2']['vent'] = false;
-                d2cmd.writeValue(Buffer.from('VENT OFF')).then(() => { console.log('[COMMAND SENT] - VENT OFF'); });
-                sendText('All Clear - ' + deviceNames[1], 'Vent: OFF');
-                writeInflux2('device2', false);
-            }
-
-            if (d != dict['device2']['sensor1']['d'] && dict['device2']['sensor1']['d'] != -1) {
-                dict['device2']['sensor1']['c'] = 0;
-            }
-            dict['device2']['sensor1']['d'] = d;
-        });
-
 
         ///////////////////////////
         ///  DEVICE 2 SENSOR 2  ///
@@ -264,41 +204,7 @@ async function main( )
         if (numSensors2 == 2) {
             const d2sensor2 = await eesService2.getCharacteristic(S1_CHARACTERISTIC_UUID.toLowerCase());
             await d2sensor2.startNotifications( );
-            d2sensor2.on( 'valuechanged', buffer =>
-            {
-                let lsb = buffer[0];
-                let msb = buffer[1];
-                let val = (lsb + (msb << 8));
-                var d = parseInt(val.toString().substring(1,2));
-                var a = parseInt(val.toString().substring(2));
-                console.log('Device 2 Sensor 2:   digital - ' + d + '    analog - ' + a);
-                
-                writeInflux1('device2', 'sensor2', a, d);
-
-                if (d == 1) {
-                    dict['device2']['sensor2']['c'] -= 1;
-                } else {
-                    dict['device2']['sensor2']['c'] += 1;
-                }
-
-                if (dict['device2']['sensor2']['c'] >= M && dict['device2']['vent'] == false) {
-                    dict['device2']['vent'] = true;
-                    d2cmd.writeValue(Buffer.from('VENT ON')).then(() => { console.log('[COMMAND SENT] - VENT ON'); });
-                    sendText(sensorNames[1][1] + ' detected in the ' + deviceNames[1], 'Vent: ON');
-                    writeInflux2('device2', true);
-                }
-                if (dict['device2']['sensor2']['c'] <= N && dict['device2']['sensor1']['c'] <= N && dict['device2']['vent'] == true) {
-                    dict['device2']['vent'] = false;
-                    d2cmd.writeValue(Buffer.from('VENT OFF')).then(() => { console.log('[COMMAND SENT] - VENT OFF'); });
-                    sendText('All Clear - ' + deviceNames[1], 'Vent: OFF');
-                    writeInflux2('device2', false);
-                }
-
-                if (d != dict['device2']['sensor2']['d'] && dict['device2']['sensor2']['d'] != -1) {
-                    dict['device2']['sensor2']['c'] = 0;
-                }
-                dict['device2']['sensor2']['d'] = d;
-            });
+            initSensor(d2sensor2,d2cmd,2,2);
         }
     }
 

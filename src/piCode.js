@@ -64,7 +64,6 @@ function writeInflux2(device, onOff) {
     const point = new Point(device).booleanField('vent', onOff);
     influxDB.writePoint(point);
     influxDB.close();
-    console.log("INFLUX - VENT : " , onOff);
 }
 
 
